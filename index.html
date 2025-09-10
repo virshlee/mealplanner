@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Meal Plan Generator</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            @apply bg-gray-50 text-gray-800 transition-colors duration-300;
+        }
+
+        /* Custom toggle switch for metric/imperial units */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+    </style>
+</head>
+<body class="flex items-start justify-center min-h-screen p-6">
+    <div class="w-full max-w-4xl mx-auto space-y-8">
+                <header class="bg-white rounded-2xl p-6 shadow-md border border-gray-200 text-center">
+            <h1 class="text-4xl font-extrabold text-blue-600 mb-2">My Meal Planner</h1>
+            <p class="text-gray-500 max-w-2xl mx-auto">
+                Generate a custom meal plan and get a copiable grocery list.
+            </p>
+            <p class="text-sm text-center text-gray-500 mt-4">
+                Session ID: <span id="userIdDisplay" class="font-mono bg-gray-100 rounded-md px-2 py-1">Loading...</span>
+            </p>
+        </header>
+
+                <section class="bg-white rounded-2xl p-6 shadow-md border border-gray-200">
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">Recipe Catalog</h2>
+            <div id="recipeCatalogContainer" class="max-h-[600px] overflow-y-auto pr-2">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-700 mb-3">Breakfast</h3>
+                        <div id="breakfastRecipes" class="space-y-2">
+                             <p class="text-sm text-gray-400">Loading breakfast recipes...</p>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-700 mb-3">Dinner</h3>
+                        <div id="dinnerRecipes" class="space-y-2">
+                            <p class="text-sm text-gray-400">Loading dinner recipes...</p>
+                        </div>
+                    </div>
+                    <div id="userRecipesSection" class="col-span-1 md:col-span-2 lg:col-span-1">
+                        <h3 class="text-xl font-bold text-gray-700 mb-3">Your Recipes</h3>
+                        <div id="userRecipesList" class="space-y-2">
+                            <p class="text-sm text-gray-400">Add your own recipes.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-8 pt-4 border-t border-gray-200">
+                <h3 class="text-xl font-bold text-gray-900 mb-4">Add Your Own Recipe</h3>
+                <div class="flex flex-col md:flex-row items-center gap-4">
+                    <label for="recipeText" class="sr-only">Recipe Text</label>
+                    <input type="text" id="recipeText" placeholder="Paste recipe text here (e.g., 'Scrambled eggs, 2 servings, 3 eggs...')"
+                           class="flex-grow w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button id="addRecipeBtn"
+                            class="w-full md:w-auto px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md
+                                   hover:bg-blue-700 transition-colors duration-200 transform active:scale-95">
+                        Generate Recipe
+                    </button>
+                </div>
+            </div>
+        </section>
+
+                <section class="bg-white rounded-2xl p-6 shadow-md border border-gray-200">
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">Generate Meal Plan</h2>
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <label for="portions" class="text-lg font-medium text-gray-700 whitespace-nowrap">Portions:</label>
+                    <input type="number" id="portions" value="4" min="1"
+                        class="w-20 p-2 border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <label for="days" class="text-lg font-medium text-gray-700 whitespace-now-wrap">Days:</label>
+                    <input type="number" id="days" value="7" min="1" max="14"
+                        class="w-20 p-2 border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-lg font-medium text-gray-700">Imperial</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="metricToggle">
+                        <span class="slider"></span>
+                    </label>
+                    <span class="text-lg font-medium text-gray-700">Metric</span>
+                </div>
+                <button id="generateBtn"
+                    class="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md
+                           hover:bg-blue-700 transition-colors duration-200 transform active:scale-95">
+                    Generate Meal Plan
+                </button>
+            </div>
+        </section>
+
+                <div id="outputSection" class="hidden space-y-8">
+                        <section class="bg-white rounded-2xl p-6 shadow-md border border-gray-200">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Your Meal Plan</h2>
+                <div id="mealPlanContainer" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    </div>
+            </section>
+
+                        <section class="bg-white rounded-2xl p-6 shadow-md border border-gray-200">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Next Steps</h2>
+                <div class="flex flex-col md:flex-row gap-4">
+                                        <div class="flex-1">
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">Grocery List</h3>
+                        <div class="relative">
+                            <textarea id="groceryListArea" rows="10" readonly
+                                class="w-full p-3 bg-gray-100 border border-gray-300 rounded-lg text-sm text-gray-700
+                                       resize-none focus:outline-none focus:ring-2 focus:ring-green-500"></textarea>
+                            <button id="copyBtn"
+                                class="absolute top-2 right-2 p-2 bg-green-500 text-white rounded-md shadow-md
+                                       hover:bg-green-600 transition-colors duration-200" title="Copy to clipboard">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                  <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                                  <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3h3V2a2 2 0 012-2h2a2 2 0 012 2v16a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2zM12 9a1 1 0 011-1h3a1 1 0 110 2h-3a1 1 0 01-1-1z" />
+                                </svg>
+                            </button>
+                            <div id="copyMessage" class="absolute bottom-2 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded-md opacity-0 transition-opacity duration-300">
+                                Copied to clipboard!
+                            </div>
+                        </div>
+                    </div>
+
+                                        <div class="flex-1 space-y-4">
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">Add to Calendar</h3>
+                        <p class="text-sm text-gray-600">Download a calendar file to import into your preferred app.</p>
+                        <button id="downloadCalendarBtn"
+                                class="w-full px-6 py-3 bg-blue-500 text-white font-semibold rounded-lg shadow-md
+                                       hover:bg-blue-600 transition-colors duration-200 transform active:scale-95">
+                            Download Calendar File
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </div>
+        
+                <div id="messageModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden z-50">
+            <div class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-xs text-center">
+                <p id="messageText" class="text-lg font-medium mb-4 text-gray-800"></p>
+                <button onclick="document.getElementById('messageModal').classList.add('hidden')"
+                        class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200">
+                    OK
+                </button>
+            </div>
+        </div>
+        
+                <div id="confirmModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden z-50">
+            <div class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-sm text-center">
+                <p id="confirmText" class="text-lg font-medium mb-6 text-gray-800">Are you sure you want to delete this recipe?</p>
+                <div class="flex justify-center gap-4">
+                    <button id="confirmYes" class="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200">Yes, Delete</button>
+                    <button id="confirmNo" class="px-5 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition-colors duration-200">No, Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+        <script type="module">
+        // Global variables provided by the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, onSnapshot, query, where, updateDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        // Use the provided custom token for automatic sign-in on page load.
+        async function authenticateUser() {
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Authentication failed:", error);
+                showMessage("Authentication failed. Please refresh the page.", "text-red-500");
+            }
+        }
+
+        // Run authentication on page load
+        authenticateUser();
+
+        const staticRecipes = [
+            { id: "static-b1", name: "Banana-Walnut Baked Oatmeal", ingredients: ["1.5 cups rolled oats", "1 large banana", "1/2 cup walnuts", "1 cup milk", "1/4 cup maple syrup"], portions: 4, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/279822/banana-walnut-baked-oatmeal" },
+            { id: "static-b2", name: "Spinach-Mushroom Scramble", ingredients: ["3 large eggs", "1 cup spinach", "1/2 cup sliced mushrooms", "1 tbsp olive oil", "salt and pepper to taste"], portions: 2, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/253916/spinach-and-mushroom-scramble" },
+            { id: "static-b3", name: "Avocado Toast with Everything Bagel Seasoning", ingredients: ["2 slices whole-wheat bread", "1/2 avocado", "1 tsp everything bagel seasoning", "red pepper flakes"], portions: 1, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/257321/avocado-toast" },
+            { id: "static-b4", name: "Berry & Yogurt Smoothie", ingredients: ["1 cup frozen mixed berries", "1/2 cup Greek yogurt", "1/2 cup milk", "1 tbsp honey"], portions: 1, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/280145/berry-yogurt-smoothie" },
+            { id: "static-b5", name: "Cottage Cheese Pancakes", ingredients: ["1 cup cottage cheese", "1/2 cup whole-wheat flour", "2 eggs", "1 tsp vanilla extract", "1 tsp baking powder"], portions: 3, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/267323/cottage-cheese-pancakes" },
+            { id: "static-b6", name: "Breakfast Burritos", ingredients: ["2 large eggs", "1 tortilla", "1/4 cup black beans", "2 tbsp salsa", "1 tbsp shredded cheese"], portions: 1, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/257320/breakfast-burrito" },
+            { id: "static-b7", name: "Lemon-Ricotta Waffles", ingredients: ["1 cup ricotta cheese", "1 cup all-purpose flour", "1 large egg", "1 tbsp lemon zest", "1/2 cup milk"], portions: 4, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/279823/lemon-ricotta-waffles" },
+            { id: "static-b8", name: "Apple & Cinnamon Overnight Oats", ingredients: ["1/2 cup rolled oats", "1/2 cup milk", "1/4 cup Greek yogurt", "1/4 cup diced apple", "1/2 tsp cinnamon"], portions: 1, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/279824/apple-cinnamon-overnight-oats" },
+            { id: "static-b9", name: "Mushroom & Kale Frittata", ingredients: ["6 large eggs", "1 cup chopped kale", "1 cup sliced mushrooms", "1/4 cup Parmesan cheese", "1 tbsp olive oil"], portions: 6, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/280146/mushroom-kale-frittata" },
+            { id: "static-b10", name: "Sweet Potato Hash", ingredients: ["1 large sweet potato", "1/2 onion", "1 bell pepper", "2 tbsp olive oil", "salt and pepper"], portions: 4, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/280147/sweet-potato-hash" },
+            { id: "static-b11", name: "Whole-Wheat Toast with Peanut Butter", ingredients: ["2 slices whole-wheat toast", "2 tbsp peanut butter", "1/2 sliced banana"], portions: 1, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/280148/whole-wheat-toast-with-peanut-butter" },
+            { id: "static-b12", name: "Breakfast Quinoa Bowl", ingredients: ["1/2 cup cooked quinoa", "1/4 cup fresh berries", "1/4 cup milk", "1 tbsp chopped nuts"], portions: 1, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/280149/breakfast-quinoa-bowl" },
+            { id: "static-b13", name: "Green Smoothie with Spinach", ingredients: ["1 cup spinach", "1/2 banana", "1/2 cup milk", "1 tbsp almond butter", "1/2 cup pineapple chunks"], portions: 1, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/280150/green-smoothie-with-spinach" },
+            { id: "static-b14", name: "Oatmeal with Almonds and Raisins", ingredients: ["1/2 cup rolled oats", "1 cup water", "1/4 cup raisins", "1 tbsp chopped almonds", "1 tsp cinnamon"], portions: 1, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/280151/oatmeal-with-almonds-and-raisins" },
+            { id: "static-b15", name: "Blueberry Muffins", ingredients: ["1.5 cups all-purpose flour", "1 cup fresh blueberries", "1/2 cup sugar", "1/4 cup milk", "1 large egg", "1/2 tsp baking soda"], portions: 12, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/280152/blueberry-muffins" },
+            { id: "static-b16", name: "Greek Yogurt Parfait", ingredients: ["1 cup Greek yogurt", "1/4 cup granola", "1/2 cup mixed berries", "1 tbsp honey"], portions: 1, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/280153/greek-yogurt-parfait" },
+            { id: "static-b17", name: "Smashed Raspberry & Ricotta Toast", ingredients: ["2 slices whole-wheat bread", "1/4 cup ricotta cheese", "1/4 cup fresh raspberries", "1 tbsp honey"], portions: 1, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/280154/smashed-raspberry-ricotta-toast" },
+            { id: "static-b18", name: "Huevos Rancheros", ingredients: ["2 tortillas", "2 large eggs", "1/2 cup black beans", "1/4 cup salsa", "1/4 cup cheese"], portions: 2, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/280155/huevos-rancheros" },
+            { id: "static-b19", name: "Chocolate-Cherry Smoothie", ingredients: ["1 cup milk", "1/2 cup frozen cherries", "1 tbsp cocoa powder", "1 tbsp almond butter", "1/2 banana"], portions: 1, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/280156/chocolate-cherry-smoothie" },
+            { id: "static-b20", name: "Breakfast Tacos", ingredients: ["2 tortillas", "2 scrambled eggs", "1/4 cup black beans", "2 tbsp salsa", "1 tbsp cheese"], portions: 1, mealType: "breakfast", url: "https://www.eatingwell.com/recipe/280157/breakfast-tacos" },
+
+            { id: "static-d1", name: "One-Pan Lemon Garlic Chicken & Veggies", ingredients: ["2 chicken breasts", "1 zucchini", "1 red bell pepper", "1 lemon", "3 cloves garlic", "2 tbsp olive oil"], portions: 2, mealType: "dinner", url: "https://www.eatingwell.com/recipe/279825/one-pan-lemon-garlic-chicken" },
+            { id: "static-d2", name: "Black Bean Burgers", ingredients: ["1 can black beans", "1/2 onion", "1/4 cup breadcrumbs", "1 egg", "1 tsp cumin", "2 buns"], portions: 2, mealType: "dinner", url: "https://www.eatingwell.com/recipe/279826/black-bean-burgers" },
+            { id: "static-d3", name: "Pasta with Marinara Sauce", ingredients: ["1 cup pasta", "1 cup marinara sauce", "1/4 cup chopped fresh basil", "2 tbsp Parmesan cheese"], portions: 2, mealType: "dinner", url: "https://www.eatingwell.com/recipe/279827/pasta-with-marinara-sauce" },
+            { id: "static-d4", name: "Chicken Stir-Fry", ingredients: ["1 chicken breast", "1 cup broccoli", "1 carrot", "1 tbsp soy sauce", "1 tsp ginger", "rice for serving"], portions: 2, mealType: "dinner", url: "https://www.eatingwell.com/recipe/279828/chicken-stir-fry" },
+            { id: "static-d5", name: "Tuna Melts", ingredients: ["1 can tuna", "2 tbsp mayonnaise", "1 tsp mustard", "2 slices bread", "2 slices cheese"], portions: 2, mealType: "dinner", url: "https://www.eatingwell.com/recipe/279829/tuna-melts" },
+            { id: "static-d6", name: "Sheet-Pan Sausage & Peppers", ingredients: ["2 Italian sausages", "1 green bell pepper", "1 red bell pepper", "1 onion", "2 tbsp olive oil"], portions: 2, mealType: "dinner", url: "https://www.eatingwell.com/recipe/279830/sheet-pan-sausage-and-peppers" },
+            { id: "static-d7", name: "Lentil Soup", ingredients: ["1 cup dried lentils", "1 carrot", "1 celery stalk", "1 onion", "4 cups vegetable broth"], portions: 4, mealType: "dinner", url: "https://www.eatingwell.com/recipe/279831/lentil-soup" },
+            { id: "static-d8", name: "Quick Beef Tacos", ingredients: ["1 lb ground beef", "1 tbsp taco seasoning", "8 taco shells", "1 cup shredded lettuce", "1 cup salsa"], portions: 4, mealType: "dinner", url: "https://www.eatingwell.com/recipe/279832/quick-beef-tacos" },
+            { id: "static-d9", name: "Vegetable Fried Rice", ingredients: ["2 cups cooked rice", "1/2 cup frozen peas and carrots", "1 egg", "1 tbsp soy sauce", "1 tsp sesame oil"], portions: 2, mealType: "dinner", url: "https://www.eatingwell.com/recipe/279833/vegetable-fried-rice" },
+            { id: "static-d10", name: "Sheet-Pan Salmon with Asparagus", ingredients: ["2 salmon fillets", "1 bunch asparagus", "1 lemon", "1 tbsp olive oil", "salt and pepper"], portions: 2, mealType: "dinner", url: "https://www.eatingwell.com/recipe/279834/sheet-pan-salmon-with-asparagus" },
+            { id: "static-d11", name: "Chicken and Broccoli Stir-Fry", ingredients: ["1 lb boneless chicken breast", "2 cups broccoli florets", "1 carrot", "1/4 cup soy sauce", "1 tbsp sesame oil"], portions: 4, mealType: "dinner", url: "https://www.eatingwell.com/recipe/280158/chicken-and-broccoli-stir-fry" },
+            { id: "static-d12", name: "Quick Shrimp Scampi", ingredients: ["1 lb shrimp", "1/4 cup white wine", "2 cloves garlic", "2 tbsp butter", "1/4 cup fresh parsley"], portions: 4, mealType: "dinner", url: "https://www.eatingwell.com/recipe/280159/quick-shrimp-scampi" },
+            { id: "static-d13", name: "Spaghetti with Meatballs", ingredients: ["1 lb spaghetti", "1 lb ground beef", "1 egg", "1/2 cup breadcrumbs", "1 jar marinara sauce"], portions: 6, mealType: "dinner", url: "https://www.eatingwell.com/recipe/280160/spaghetti-with-meatballs" },
+            { id: "static-d14", name: "Black Bean & Corn Salsa with Chips", ingredients: ["1 can black beans", "1 cup corn", "1/2 red onion", "1 lime", "1/4 cup chopped cilantro"], portions: 4, mealType: "dinner", url: "https://www.eatingwell.com/recipe/280161/black-bean-and-corn-salsa" },
+            { id: "static-d15", name: "Chicken and Veggie Kebabs", ingredients: ["1 lb chicken breast", "1 bell pepper", "1 zucchini", "1 red onion", "1 tbsp olive oil", "1 tsp paprika"], portions: 4, mealType: "dinner", url: "https://www.eatingwell.com/recipe/280162/chicken-and-veggie-kebabs" },
+            { id: "static-d16", name: "Easy Tuna Casserole", ingredients: ["1 can tuna", "1 can condensed cream of mushroom soup", "1 cup frozen peas", "1 cup egg noodles", "1/2 cup breadcrumbs"], portions: 4, mealType: "dinner", url: "https://www.eatingwell.com/recipe/280163/easy-tuna-casserole" },
+            { id: "static-d17", name: "Turkey Burgers", ingredients: ["1 lb ground turkey", "1/4 cup breadcrumbs", "1 egg", "1 tsp onion powder", "4 buns"], portions: 4, mealType: "dinner", url: "https://www.eatingwell.com/recipe/280164/turkey-burgers" },
+            { id: "static-d18", name: "Pork Chops with Apples", ingredients: ["2 pork chops", "1 apple", "1/2 onion", "1 tbsp butter", "1/2 cup chicken broth"], portions: 2, mealType: "dinner", url: "https://www.eatingwell.com/recipe/280165/pork-chops-with-apples" },
+            { id: "static-d19", name: "Roasted Chicken & Potatoes", ingredients: ["1 lb chicken thighs", "2 large potatoes", "1 onion", "2 tbsp olive oil", "1 tsp rosemary"], portions: 4, mealType: "dinner", url: "https://www.eatingwell.com/recipe/280166/roasted-chicken-and-potatoes" },
+            { id: "static-d20", name: "Vegetarian Chili", ingredients: ["1 can black beans", "1 can kidney beans", "1 can diced tomatoes", "1 onion", "1 green bell pepper", "1 tbsp chili powder"], portions: 6, mealType: "dinner", url: "https://www.eatingwell.com/recipe/280167/vegetarian-chili" },
+        ];
+        
+        // --- Unit Conversion Map ---
+        const unitMap = {
+            'cup': 236.6, 'cups': 236.6,
+            'tablespoon': 14.8, 'tbsp': 14.8, 'T': 14.8,
+            'teaspoon': 4.9, 'tsp': 4.9,
+            'fluid ounce': 29.6, 'fl oz': 29.6, 'oz': 28.35,
+            'pound': 453.6, 'lb': 453.6,
+            'pint': 473.2, 'pt': 473.2,
+            'quart': 946.4, 'qt': 946.4,
+            'gallon': 3785.4, 'gal': 3785.4,
+        };
+
+        const unitMapMetric = {
+             'cup': 'ml', 'cups': 'ml',
+            'tablespoon': 'ml', 'tbsp': 'ml', 'T': 'ml',
+            'teaspoon': 'ml', 'tsp': 'ml',
+            'fluid ounce': 'ml', 'fl oz': 'ml',
+            'ounce': 'g', 'oz': 'g',
+            'pound': 'g', 'lb': 'g',
+            'pint': 'ml', 'pt': 'ml',
+            'quart': 'ml', 'qt': 'ml',
+            'gallon': 'ml', 'gal': 'ml',
+        };
+
+        let allRecipes = [];
+        let userRecipes = [];
+        let currentUserId = null;
+        let generatedGroceryList = {}; // To store both lists
+        let generatedMealPlan = []; // Store the generated plan for calendar sync
+        let authStateChecked = false; // Flag to prevent multiple initial setups
+
+        // --- UI Element References ---
+        const portionsInput = document.getElementById('portions');
+        const daysInput = document.getElementById('days');
+        const generateBtn = document.getElementById('generateBtn');
+        const outputSection = document.getElementById('outputSection');
+        const mealPlanContainer = document.getElementById('mealPlanContainer');
+        const groceryListArea = document.getElementById('groceryListArea');
+        const copyBtn = document.getElementById('copyBtn');
+        const copyMessage = document.getElementById('copyMessage');
+        const recipeTextarea = document.getElementById('recipeText');
+        const addRecipeBtn = document.getElementById('addRecipeBtn');
+        const metricToggle = document.getElementById('metricToggle');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        const breakfastRecipesContainer = document.getElementById('breakfastRecipes');
+        const dinnerRecipesContainer = document.getElementById('dinnerRecipes');
+        const userRecipesListContainer = document.getElementById('userRecipesList');
+        const messageModal = document.getElementById('messageModal');
+        const messageText = document.getElementById('messageText');
+        const confirmModal = document.getElementById('confirmModal');
+        const confirmYesBtn = document.getElementById('confirmYes');
+        const confirmNoBtn = document.getElementById('confirmNo');
+        const downloadCalendarBtn = document.getElementById('downloadCalendarBtn');
+
+        // Function to show a custom message modal instead of alert()
+        function showMessage(text, colorClass = "text-gray-800") {
+            messageText.textContent = text;
+            messageText.className = `text-lg font-medium mb-4 ${colorClass}`;
+            messageModal.classList.remove('hidden');
+        }
+
+        // --- Firebase Initialization and Authentication ---
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUserId = user.uid;
+                userIdDisplay.textContent = currentUserId;
+                setupRealtimeListener(currentUserId);
+                userRecipesListContainer.innerHTML = '<p class="text-sm text-gray-400">Loading your recipes...</p>';
+            } else {
+                currentUserId = null;
+                userIdDisplay.textContent = 'Not signed in';
+                userRecipesListContainer.innerHTML = `<p class="text-sm text-gray-400">Add your own recipes to see them here.</p>`;
+                allRecipes = [...staticRecipes]; // Use only static recipes when logged out
+                renderCatalog();
+            }
+        });
+
+        // --- Real-time Recipe Listener ---
+        function setupRealtimeListener(userId) {
+            const collectionPath = `artifacts/${appId}/users/${userId}/recipes`;
+            const recipesCollection = collection(db, collectionPath);
+            
+            // onSnapshot listens for real-time changes
+            onSnapshot(recipesCollection, (querySnapshot) => {
+                const recipes = [];
+                querySnapshot.forEach((doc) => {
+                    recipes.push({ id: doc.id, ...doc.data() });
+                });
+                userRecipes = recipes; // Update the local recipes array
+                allRecipes = [...staticRecipes, ...userRecipes];
+                renderCatalog();
+            }, (error) => {
+                console.error("Error fetching recipes: ", error);
+                userRecipesListContainer.innerHTML = `<p class="text-sm text-red-400">Failed to load recipes.</p>`;
+            });
+        }
+
+        function createRecipeCheckbox(recipe, canDelete = false) {
+            const div = document.createElement('div');
+            div.className = 'flex items-center gap-2 py-1 text-sm';
+
+            // Create a clickable container instead of just a label
+            const clickableDiv = document.createElement('div');
+            clickableDiv.className = 'flex-grow flex items-center gap-2 cursor-pointer hover:text-blue-600 transition-colors';
+            clickableDiv.innerHTML = `
+                <input type="checkbox" id="recipe-${recipe.id}" value="${recipe.id}" class="h-4 w-4 text-blue-600 rounded-md border-gray-300 focus:ring-blue-500">
+                <span class="flex-grow">${recipe.name}</span>
+            `;
+
+            // Add event listener to the clickable div
+            clickableDiv.addEventListener('click', () => {
+                if (recipe.url) {
+                    window.open(recipe.url, '_blank');
+                }
+            });
+
+            div.appendChild(clickableDiv);
+
+            if (canDelete) {
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'text-red-500 hover:text-red-700 transition-colors duration-200';
+                deleteBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0
