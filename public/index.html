@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Recipe App — Save Meals</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+        body { font-family: system-ui, Arial; max-width:900px; margin:24px auto; padding:12px; }
+        header{display:flex;align-items:center;justify-content:space-between}
+        .card{border:1px solid #ddd;padding:12px;border-radius:8px;margin-top:12px}
+        .meal{border-bottom:1px dashed #eee;padding:8px 0;display:flex;justify-content:space-between;align-items:center}
+        .controls button{margin-left:6px}
+        form input, form textarea, form select {width:100%;padding:8px;margin:6px 0;border-radius:6px;border:1px solid #ccc}
+        .hidden{display:none}
+        #plan-form label { display: block; margin-top: 10px; font-weight: bold; }
+        #plan-form input { width: auto; margin-right: 10px; }
+        #meal-plan-display ul { list-style-type: none; padding-left: 0; }
+        #meal-plan-display li { margin-bottom: 5px; }
+    </style>
+    <script type="module">
+        // --- Firebase imports (modular) ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import {
+            getAuth,
+            signInWithPopup,
+            GoogleAuthProvider,
+            onAuthStateChanged,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+        import {
+            getFirestore,
+            collection,
+            doc,
+            addDoc,
+            deleteDoc,
+            query,
+            orderBy,
+            onSnapshot,
+            serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+        // --- Your Firebase config ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyB5Dle95t_pZFHMJ0nHLK0Stmv4CyFkpSI",
+            authDomain: "mealplanner-3d711.firebaseapp.com",
+            projectId: "mealplanner-3d711",
+            storageBucket: "mealplanner-3d711.appspot.com",
+            messagingSenderId: "731814301235",
+            appId: "1:731814301235:web:b652ad6e9fc06c93141d46"
+        };
+
+        // --- Initialize Firebase ---
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+
+        // --- UI elements ---
+        const userInfoEl = () => document.getElementById('user-info');
+        const signInBtn = () => document.getElementById('btn-signin');
+        const signOutBtn = () => document.getElementById('btn-signout');
+        const appUI = () => document.getElementById('app-ui');
+        const mealsListEl = () => document.getElementById('meals-list');
+        const formEl = () => document.getElementById('meal-form');
+        const mealTypeInput = () => document.getElementById('meal-type');
+        const saveBtn = () => document.getElementById('btn-save');
+        const statusEl = () => document.getElementById('status');
+
+        // --- New UI elements for meal plan generation ---
+        const planFormEl = () => document.getElementById('plan-form');
+        const numDaysInput = () => document.getElementById('num-days');
+        const numServingsInput = () => document.getElementById('num-servings');
+        const planDisplayEl = () => document.getElementById('meal-plan-display');
+
+        // --- State ---
+        let currentUser = null;
+        let mealsUnsubscribe = null;
+        let savedMeals = [];
+
+        // --- Auth functions (exposed to HTML as onclick handlers) ---
+        window.signInWithGoogle = async function() {
+            try {
+                const result = await signInWithPopup(auth, provider);
+                // signed in
+                console.log('Signed in:', result.user);
+            } catch (err) {
+                console.error(err);
+                alert('Sign-in error: ' + (err.message || err));
+            }
+        };
+
+        window.signOutUser = async function() {
+            try {
+                await signOut(auth);
+            } catch (err) {
+                console.error(err);
+                alert('Sign-out error: ' + (err.message || err));
+            }
+        };
+
+        // --- Auth state listener ---
+        onAuthStateChanged(auth, user => {
+            currentUser = user;
+            if (user) {
+                userInfoEl().textContent = `Hello, ${user.displayName} (${user.email})`;
+                signInBtn().classList.add('hidden');
+                signOutBtn().classList.remove('hidden');
+                appUI().classList.remove('hidden');
+                startMealsListener(user.uid);
+            } else {
+                userInfoEl().textContent = 'Not signed in';
+                signInBtn().classList.remove('hidden');
+                signOutBtn().classList.add('hidden');
+                appUI().classList.add('hidden');
+                stopMealsListener();
+            }
+        });
+
+        // --- Firestore: listen to user's meals live ---
+        function startMealsListener(uid) {
+            stopMealsListener();
+            const mealsRef = collection(db, 'users', uid, 'meals');
+            const q = query(mealsRef, orderBy('createdAt', 'desc'));
+            mealsUnsubscribe = onSnapshot(q, snapshot => {
+                renderMeals(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+            }, err => {
+                console.error('Listener error', err);
+            });
+        }
+
+        function stopMealsListener() {
+            if (mealsUnsubscribe) {
+                mealsUnsubscribe();
+                mealsUnsubscribe = null;
+            }
+            mealsListEl().innerHTML = '';
+        }
+
+        // --- Add a meal (with type) ---
+        formEl().addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!currentUser) { alert('Please sign in first'); return; }
+
+            const url = document.getElementById('meal-url').value.trim();
+            if (!url) { alert('Please paste a recipe URL'); return; }
+
+            const type = mealTypeInput().value;
+
+            saveBtn().disabled = true;
+            statusEl().textContent = 'Fetching recipe...';
+
+            try {
+                // Replace with your Spoonacular API key
+                const apiKey = "5d6046bf1bb545898ee653b773cac47e";
+                const apiUrl = `https://api.spoonacular.com/recipes/extract?apiKey=${apiKey}&url=${encodeURIComponent(url)}`;
+
+                const response = await fetch(apiUrl);
+                const recipe = await response.json();
+
+                if (recipe.status === "failure") throw new Error(recipe.message);
+
+                // Extract details
+                const title = recipe.title || "Recipe";
+                const servings = recipe.servings || "";
+                const macros = recipe.nutrition?.nutrients
+                    ?.map(n => `${n.name}: ${n.amount}${n.unit}`)
+                    .join(", ") || "";
+
+                // Save to Firestore
+                const userMealsCol = collection(db, 'users', currentUser.uid, 'meals');
+                await addDoc(userMealsCol, {
+                    url,
+                    title,
+                    type,
+                    servings,
+                    macros,
+                    createdAt: serverTimestamp()
+                });
+
+                formEl().reset();
+                statusEl().textContent = 'Recipe saved!';
+            } catch (err) {
+                console.error(err);
+                alert('Error fetching recipe: ' + (err.message || err));
+            } finally {
+                saveBtn().disabled = false;
+            }
+        });
+        
+        // --- Generate meal plan ---
+        planFormEl().addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (!currentUser) {
+                alert('Please sign in first');
+                return;
+            }
+
+            const numDays = parseInt(numDaysInput().value, 10);
+            const numServings = parseInt(numServingsInput().value, 10);
+
+            if (savedMeals.length === 0) {
+                planDisplayEl().innerHTML = '<p>Please save some recipes first to generate a plan.</p>';
+                return;
+            }
+
+            // Group meals by type
+            const types = {
+                breakfast: savedMeals.filter(m => m.type === 'breakfast'),
+                lunch_dinner: savedMeals.filter(m => m.type === 'lunch_dinner'),
+                snack: savedMeals.filter(m => m.type === 'snack')
+            };
+            
+            let planHtml = '<h4>Your Meal Plan</h4>';
+            const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+            for (let i = 0; i < numDays; i++) {
+                planHtml += `<h5>${daysOfWeek[i % 7]}</h5>`;
+                planHtml += `<ul>`;
+
+                // Breakfast
+                if (types.breakfast.length > 0) {
+                    const breakfast = types.breakfast[Math.floor(Math.random() * types.breakfast.length)];
+                    planHtml += `<li><b>Breakfast:</b> <a href="${escapeHtml(breakfast.url)}" target="_blank">${escapeHtml(breakfast.title)}</a> (serves ${numServings})</li>`;
+                }
+
+                // Lunch & Dinner
+                if (types.lunch_dinner.length > 0) {
+                    const lunch = types.lunch_dinner[Math.floor(Math.random() * types.lunch_dinner.length)];
+                    const dinner = types.lunch_dinner[Math.floor(Math.random() * types.lunch_dinner.length)];
+                    planHtml += `<li><b>Lunch:</b> <a href="${escapeHtml(lunch.url)}" target="_blank">${escapeHtml(lunch.title)}</a> (serves ${numServings})</li>`;
+                    planHtml += `<li><b>Dinner:</b> <a href="${escapeHtml(dinner.url)}" target="_blank">${escapeHtml(dinner.title)}</a> (serves ${numServings})</li>`;
+                }
+                
+                // Snack
+                if (types.snack.length > 0) {
+                    const snack = types.snack[Math.floor(Math.random() * types.snack.length)];
+                    planHtml += `<li><b>Snack:</b> <a href="${escapeHtml(snack.url)}" target="_blank">${escapeHtml(snack.title)}</a> (serves ${numServings})</li>`;
+                }
+                
+                planHtml += `</ul>`;
+            }
+            
+            planDisplayEl().innerHTML = planHtml;
+        });
+
+        // --- Render meals grouped by type, no ingredients shown ---
+        function renderMeals(meals) {
+            savedMeals = meals;
+            const list = mealsListEl();
+            list.innerHTML = '';
+            if (meals.length === 0) {
+                list.innerHTML = '<div class="card">No saved meals yet.</div>';
+                return;
+            }
+
+            // Group meals by type
+            const types = {
+                breakfast: [],
+                lunch_dinner: [],
+                snack: []
+            };
+            meals.forEach(m => {
+                if (m.type === 'breakfast') types.breakfast.push(m);
+                else if (m.type === 'snack') types.snack.push(m);
+                else types.lunch_dinner.push(m); // default to lunch/dinner
+            });
+
+            // Helper to render a group
+            function renderGroup(label, group) {
+                if (group.length === 0) return '';
+                let html = `<h4>${label}</h4>`;
+                group.forEach(m => {
+                    html += `
+                        <div class="meal">
+                            <div>
+                                <strong><a href="${escapeHtml(m.url)}" target="_blank">${escapeHtml(m.title)}</a></strong>
+                                <div style="font-size:0.9em;color:#555;">
+                                    ${m.servings ? `<b>Servings:</b> ${escapeHtml(m.servings)}<br>` : ''}
+                                    ${m.macros ? `<b>Macros:</b> ${escapeHtml(m.macros)}` : ''}
+                                </div>
+                            </div>
+                            <div class="controls">
+                                <button onclick="deleteMeal('${m.id}')">Delete</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                return html;
+            }
+
+            list.innerHTML =
+                renderGroup('Breakfasts', types.breakfast) +
+                renderGroup('Dinners', types.lunch_dinner) +
+                renderGroup('Snacks', types.snack);
+        }
+
+        // --- Delete helper ---
+        async function deleteMeal(mealId) {
+            if (!currentUser) return;
+            try {
+                const mealDoc = doc(db, 'users', currentUser.uid, 'meals', mealId);
+                await deleteDoc(mealDoc);
+            } catch (err) {
+                console.error(err);
+                alert('Delete error: ' + (err.message || err));
+            }
+        }
+        window.deleteMeal = deleteMeal;
+
+        // --- small helpers ---
+        function escapeHtml(s) {
+            if (s === undefined || s === null) return '';
+            return String(s).replace(/[&<>"'`]/g, c => (
+                {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#x60;'}[c]
+            ));
+        }
+
+        // expose for debugging if needed
+        window._app = { auth, db };
+
+    </script>
+</head>
+<body>
+    <header>
+        <h1>Recipe App — Save Meals</h1>
+        <div>
+            <span id="user-info">Not signed in</span>
+            <button id="btn-signin" onclick="signInWithGoogle()">Sign in with Google</button>
+            <button id="btn-signout" class="hidden" onclick="signOutUser()">Sign out</button>
+        </div>
+    </header>
+
+    <main>
+        <div id="app-ui" class="hidden">
+            <section class="card">
+                <h3>Add Recipe by URL</h3>
+                <form id="meal-form">
+                    <input id="meal-url" placeholder="Paste recipe URL here" required />
+                    <select id="meal-type" required>
+                        <option value="breakfast">Breakfast</option>
+                        <option value="lunch_dinner">Dinner</option>
+                        <option value="snack">Snack</option>
+                    </select>
+                    <div style="display:flex;align-items:center;gap:8px">
+                        <button id="btn-save" type="submit">Save Recipe</button>
+                        <div id="status" style="color:#777;font-size:0.9em"></div>
+                    </div>
+                </form>
+            </section>
+
+            <section class="card">
+                <h3>Your Saved Meals</h3>
+                <div id="meals-list">
+                </div>
+            </section>
+            
+            <section class="card">
+                <h3>Generate Meal Plan 📅</h3>
+                <form id="plan-form">
+                    <label for="num-days">Number of Days:</label>
+                    <input type="number" id="num-days" value="7" min="1" required />
+                    <label for="num-servings">Servings per meal:</label>
+                    <input type="number" id="num-servings" value="1" min="1" required />
+                    <button id="btn-generate-plan" type="submit">Generate Plan</button>
+                </form>
+                <div id="meal-plan-display" style="margin-top: 12px;"></div>
+            </section>
+        </div>
+
+        <div style="margin-top:18px;color:#666;font-size:0.9em">
+            Tip: meals are stored under <code>/users/{yourUid}/meals/</code> in Firestore.
+        </div>
+    </main>
+</body>
+</html>

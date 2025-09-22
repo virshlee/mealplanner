@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Recipe App Login</title>
+    <script type="module">
+      // Import the functions you need from the SDKs
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+      import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+      
+      // Your Firebase config here
+	const firebaseConfig = {
+		apiKey: "AIzaSyB5Dle95t_pZFHMJ0nHLK0Stmv4CyFkpSI",
+		authDomain: "mealplanner-3d711.firebaseapp.com",
+		projectId: "mealplanner-3d711",
+		storageBucket: "mealplanner-3d711.firebasestorage.app",
+		messagingSenderId: "731814301235",
+		appId: "1:731814301235:web:b652ad6e9fc06c93141d46"
+	  };
+
+      // Initialize Firebase
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const provider = new GoogleAuthProvider();
+
+      // Attach function to window so HTML can reach it
+      window.signInWithGoogle = () => {
+        signInWithPopup(auth, provider)
+          .then((result) => {
+            alert("Signed in as: " + result.user.displayName);
+            // Redirect or load app as needed
+          })
+          .catch((error) => {
+            alert(error.message);
+          });
+      };
+    </script>
+  </head>
+  <body>
+    <h2>Sign in to Save Recipes</h2>
+    <button onclick="signInWithGoogle()">Sign in with Google</button>
+  </body>
+</html>
