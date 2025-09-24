@@ -70,6 +70,8 @@ All user-owned data is namespaced under the user document. Ingredient names are 
 /users/{userId}/ingredients/{ingredientId}
   name: string
   unit: 'oz' | 'lb' | 'cup' | 'tbsp' | 'tsp' | 'pc' | 'pint' | 'quart' | 'gallon' // enumerated, stored as imperial unit
+  amount: number // quantity of 'unit' corresponding to 'servings'
+  servings: number // the number of servings that 'amount' covers (defaults 1)
   // future: canonicalUnit: 'oz' | ... (for grocery list aggregation)
 
 /users/{userId}/meals/{mealId}

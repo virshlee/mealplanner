@@ -1,7 +1,7 @@
 # Architecture Overview
 
-**Version:** 1.0
-**Date:** September 22, 2025
+**Version:** 1.1
+**Date:** September 23, 2025
 
 ---
 
@@ -13,6 +13,13 @@
 - **Hosting**: Firebase Hosting (single project with multiple channels: dev, preview, production).
 - **Offline**: Firestore persistence enabled for offline read/write and sync.
 
+## Current Implementation Status
+
+- Authentication foundation implemented with Google provider and context (`AuthContext`).
+- UI simplified to Meals-only: `Layout` renders `Meals` component exclusively.
+- Firestore offline persistence enabled with IndexedDB.
+- Security rules enforce user-scoped access under `users/{userId}/{document=**}`.
+
 ## Data Topology
 
 - `users/{userId}` root doc contains profile fields.
@@ -20,6 +27,8 @@
   - `ingredients/{ingredientId}`
   - `meals/{mealId}` with `ingredientLines[]` and `mealType`
   - `plans/{planId}` with `entries[]`
+
+Ingredients now store `amount` and `servings` to express density like "2 cup per 4 servings" for aggregation and planning.
 
 ## Security Model
 
@@ -63,7 +72,7 @@ service cloud.firestore {
 ## Deployment & Environments
 
 - Single Firebase project in Europe.
-- Use Hosting channels:
+ - Use Hosting channels:
   - `dev` for internal testing
   - `preview` via PR previews
   - `production` for releases
@@ -72,3 +81,4 @@ service cloud.firestore {
 
 - Aggregate ingredientLines across `plans/{planId}.entries`.
 - Normalize by unit via conversion map; group by `ingredientId` for totals.
+ - With plans in place, totals can be computed by summing scaled meal ingredient lines across selected plan entries.
